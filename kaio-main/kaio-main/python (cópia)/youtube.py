@@ -1,122 +1,123 @@
+import tkinter as tk
+from tkinter import filedialog, messagebox, scrolledtext
 import yt_dlp
 import os
 
-def download_audio(url, download_path, is_playlist=False):
-    try:
-        if not os.path.exists(download_path):
-            os.makedirs(download_path)
-            print(f"Diretório '{download_path}' criado com sucesso.")
-        
-        ydl_opts = {
-            'format': 'bestaudio[ext=m4a]',
-            'outtmpl': os.path.join(download_path, '%(title)s.%(ext)s'),
-            'noplaylist': not is_playlist,
-            'quiet': False,
-            'no_warnings': True,
-        }
+def baixar_conteudo(urls, path, is_playlist, baixar_video, log_callback):
+    if not os.path.exists(path):
+        os.makedirs(path)
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            print(f"\n🔗 Baixando: {url}")
-            ydl.download([url])
-        
-        print(f"✅ Concluído: {url}")
-        return None  # Nenhum erro
+    formato = (
+        'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]'
+        if baixar_video else
+        'bestaudio[ext=m4a]'
+    )
 
-    except yt_dlp.utils.DownloadError as e:
-        mensagem = str(e)
-        if "Requested format is not available" in mensagem:
-            return "Formato de áudio não disponível para este vídeo."
-        elif "Video unavailable" in mensagem:
-            return "Vídeo indisponível ou privado."
-        elif "HTTP Error" in mensagem:
-            return "Erro de conexão ou bloqueio do YouTube."
-        elif "Signature extraction failed" in mensagem:
-            return "Erro ao decodificar a assinatura do vídeo."
-        else:
-            return f"Erro inesperado: {mensagem}"
-    except Exception as e:
-        return f"Erro desconhecido: {e}"
+    ydl_opts = {
+        'format': formato,
+        'outtmpl': os.path.join(path, '%(title)s.%(ext)s'),
+        'noplaylist': not is_playlist,
+        'quiet': True,
+        'no_warnings': True,
+        'merge_output_format': 'mp4' if baixar_video else 'm4a'
+    }
 
-def obter_links():
-    print("\nComo deseja fornecer os links?")
-    print("1. Inserir manualmente")
-    print("2. Carregar de um arquivo .txt")
-    escolha = input("Digite 1 ou 2: ").strip()
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        for index, url in enumerate(urls, 1):
+            try:
+                log_callback(f"🔗 Baixando ({index}/{len(urls)}): {url}")
+                ydl.download([url])
+                log_callback(f"✅ Sucesso: {url}\n")
+            except Exception as e:
+                log_callback(f"❌ Erro ao baixar {url}: {e}\n")
 
-    links = []
+def selecionar_arquivo(entry):
+    caminho = filedialog.askopenfilename(filetypes=[("Arquivos de Texto", "*.txt")])
+    if caminho:
+        entry.delete(0, tk.END)
+        entry.insert(0, caminho)
 
-    if escolha == '1':
-        print("\nCole os links dos vídeos ou playlists do YouTube:")
-        print("➤ Pode colar múltiplos links separados por vírgula ou linha.")
-        print("Digite 'fim' para encerrar a entrada dos links.\n")
+def selecionar_pasta(entry):
+    caminho = filedialog.askdirectory()
+    if caminho:
+        entry.delete(0, tk.END)
+        entry.insert(0, caminho)
 
-        while True:
-            linha = input()
-            if linha.strip().lower() == 'fim':
-                break
-            elif ',' in linha:
-                links.extend([link.strip() for link in linha.split(',') if link.strip()])
-            elif linha.strip():
-                links.append(linha.strip())
-    
-    elif escolha == '2':
-        caminho_arquivo = input("Digite o caminho do arquivo .txt com os links: ").strip()
+def iniciar_download():
+    links_texto = link_input.get("1.0", tk.END).strip()
+    arquivo_links = entry_arquivo.get().strip()
+    caminho_destino = entry_destino.get().strip() or os.path.expanduser("~/Downloads")
+    is_playlist = var_playlist.get()
+    baixar_video = var_video.get()
+
+    urls = []
+    if links_texto:
+        for linha in links_texto.splitlines():
+            if ',' in linha:
+                urls.extend(link.strip() for link in linha.split(',') if link.strip())
+            else:
+                urls.append(linha.strip())
+    elif arquivo_links:
         try:
-            with open(caminho_arquivo, 'r', encoding='utf-8') as arquivo:
-                links = [linha.strip() for linha in arquivo if linha.strip()]
-            print(f"{len(links)} link(s) carregados do arquivo.")
+            with open(arquivo_links, 'r', encoding='utf-8') as f:
+                urls = [linha.strip() for linha in f if linha.strip()]
         except Exception as e:
-            print(f"Erro ao ler o arquivo: {e}")
+            messagebox.showerror("Erro", f"Erro ao ler o arquivo: {e}")
+            return
     else:
-        print("Opção inválida! Nenhum link carregado.")
-
-    return links
-
-def main():
-    print("=== Download de Áudios do YouTube ===")
-
-    links = obter_links()
-
-    if not links:
-        print("Nenhum link fornecido. Encerrando.")
+        messagebox.showwarning("Aviso", "Forneça os links manualmente ou carregue um arquivo .txt.")
         return
 
-    print("\nEscolha um diretório para salvar:")
-    print("1. Usar o diretório padrão: 'C:/Users/kaio0/Downloads/atletica/'")
-    print("2. Editar e escolher um diretório personalizado")
-    option = input("Digite 1 ou 2: ").strip()
+    if not urls:
+        messagebox.showwarning("Aviso", "Nenhum link válido encontrado.")
+        return
 
-    if option == '1':
-        download_path = 'C:/Users/kaio0/Downloads/atletica/'
-    elif option == '2':
-        download_path = input("Digite o diretório de destino: ").strip() or 'C:/Users/kaio0/Downloads/atletica/'
-    else:
-        print("Opção inválida! Usando o diretório padrão.")
-        download_path = 'C:/Users/kaio0/Downloads/atletica/'
+    log_output.delete("1.0", tk.END)
+    baixar_conteudo(urls, caminho_destino, is_playlist, baixar_video, lambda msg: log_output.insert(tk.END, msg + "\n"))
+    log_output.insert(tk.END, "\n🏁 Concluído!\n")
 
-    print("\nEscolha o tipo de download:")
-    print("1. Baixar áudio de vídeos individuais")
-    print("2. Baixar áudio de playlists completas")
-    download_type = input("Digite 1 ou 2: ").strip()
-    is_playlist = download_type == '2'
+# GUI
+root = tk.Tk()
+root.title("Downloader YouTube (Áudio/Vídeo)")
+root.geometry("700x600")
 
-    print(f"\n📥 Iniciando o download de {len(links)} link(s)...\n")
+# Frame dos links
+tk.Label(root, text="Links (1 por linha ou separados por vírgula):").pack(anchor="w", padx=10)
+link_input = scrolledtext.ScrolledText(root, height=6)
+link_input.pack(fill="x", padx=10, pady=5)
 
-    erros = []
+# Ou carregar de arquivo
+frame_file = tk.Frame(root)
+frame_file.pack(fill="x", padx=10, pady=5)
+tk.Label(frame_file, text="Ou carregar links de arquivo (.txt):").pack(anchor="w")
+entry_arquivo = tk.Entry(frame_file)
+entry_arquivo.pack(side="left", fill="x", expand=True)
+tk.Button(frame_file, text="Selecionar Arquivo", command=lambda: selecionar_arquivo(entry_arquivo)).pack(side="left", padx=5)
 
-    for index, link in enumerate(links, start=1):
-        print(f"\n🎵 ({index}/{len(links)}) Processando: {link}")
-        erro = download_audio(link, download_path, is_playlist)
-        if erro:
-            erros.append((link, erro))
-            print(f"❌ Falha: {erro}")
+# Pasta de destino
+frame_destino = tk.Frame(root)
+frame_destino.pack(fill="x", padx=10, pady=5)
+tk.Label(frame_destino, text="Pasta de destino:").pack(anchor="w")
+entry_destino = tk.Entry(frame_destino)
+entry_destino.pack(side="left", fill="x", expand=True)
+tk.Button(frame_destino, text="Selecionar Pasta", command=lambda: selecionar_pasta(entry_destino)).pack(side="left", padx=5)
 
-    if erros:
-        print("\n⚠️ Alguns downloads falharam:")
-        for link, motivo in erros:
-            print(f"- {link} → {motivo}")
-    else:
-        print("\n✅ Todos os downloads foram concluídos com sucesso!")
+# Opções
+frame_opts = tk.Frame(root)
+frame_opts.pack(fill="x", padx=10, pady=5)
 
-if __name__ == "__main__":
-    main()
+var_playlist = tk.BooleanVar()
+var_video = tk.BooleanVar()
+
+tk.Checkbutton(frame_opts, text="É playlist", variable=var_playlist).pack(side="left", padx=5)
+tk.Checkbutton(frame_opts, text="Baixar vídeo completo (.mp4)", variable=var_video).pack(side="left", padx=5)
+
+# Botão de download
+tk.Button(root, text="📥 Iniciar Download", command=iniciar_download, bg="green", fg="white").pack(pady=10)
+
+# Área de log
+tk.Label(root, text="Log de status:").pack(anchor="w", padx=10)
+log_output = scrolledtext.ScrolledText(root, height=15)
+log_output.pack(fill="both", expand=True, padx=10, pady=5)
+
+root.mainloop()
