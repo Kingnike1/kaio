@@ -1,9 +1,29 @@
 import tkinter as tk
 from tkinter import filedialog, messagebox, scrolledtext
+from tkinter import ttk
 import yt_dlp
 import os
 
-def baixar_conteudo(urls, path, is_playlist, baixar_video, log_callback):
+def interpretar_erro(e):
+    mensagem = str(e).lower()
+    if "video unavailable" in mensagem or "this video is private" in mensagem:
+        return "⚠️ O vídeo está indisponível ou é privado."
+    elif "geo restricted" in mensagem or "not available in your country" in mensagem:
+        return "🌍 O vídeo está bloqueado na sua região."
+    elif "unsupported url" in mensagem:
+        return "❌ URL inválida ou não suportada."
+    elif "too many requests" in mensagem or "rate limit" in mensagem:
+        return "🚫 Muitas requisições. Tente novamente mais tarde."
+    elif "signature extraction" in mensagem:
+        return "🔐 Erro ao decodificar a assinatura do vídeo."
+    elif "unable to extract" in mensagem:
+        return "⚠️ Não foi possível extrair informações do vídeo."
+    elif "http error" in mensagem:
+        return "🌐 Problema de conexão ou vídeo removido."
+    else:
+        return f"❌ Erro desconhecido: {e}"
+
+def baixar_conteudo(urls, path, is_playlist, baixar_video, log_callback, update_progress):
     if not os.path.exists(path):
         os.makedirs(path)
 
@@ -22,14 +42,17 @@ def baixar_conteudo(urls, path, is_playlist, baixar_video, log_callback):
         'merge_output_format': 'mp4' if baixar_video else 'm4a'
     }
 
+    total = len(urls)
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         for index, url in enumerate(urls, 1):
             try:
-                log_callback(f"🔗 Baixando ({index}/{len(urls)}): {url}")
+                log_callback(f"🔗 Baixando ({index}/{total}): {url}")
                 ydl.download([url])
                 log_callback(f"✅ Sucesso: {url}\n")
             except Exception as e:
-                log_callback(f"❌ Erro ao baixar {url}: {e}\n")
+                erro_msg = interpretar_erro(e)
+                log_callback(f"❌ Falha: {erro_msg} ({url})\n")
+            update_progress(index, total)
 
 def selecionar_arquivo(entry):
     caminho = filedialog.askopenfilename(filetypes=[("Arquivos de Texto", "*.txt")])
@@ -73,13 +96,24 @@ def iniciar_download():
         return
 
     log_output.delete("1.0", tk.END)
-    baixar_conteudo(urls, caminho_destino, is_playlist, baixar_video, lambda msg: log_output.insert(tk.END, msg + "\n"))
+    progress_bar["value"] = 0
+    progress_bar["maximum"] = len(urls)
+
+    def log(msg):
+        log_output.insert(tk.END, msg + "\n")
+        log_output.see(tk.END)
+
+    def atualizar_barra(atual, total):
+        progress_bar["value"] = atual
+        root.update_idletasks()
+
+    baixar_conteudo(urls, caminho_destino, is_playlist, baixar_video, log, atualizar_barra)
     log_output.insert(tk.END, "\n🏁 Concluído!\n")
 
 # GUI
 root = tk.Tk()
 root.title("Downloader YouTube (Áudio/Vídeo)")
-root.geometry("700x600")
+root.geometry("700x640")
 
 # Frame dos links
 tk.Label(root, text="Links (1 por linha ou separados por vírgula):").pack(anchor="w", padx=10)
@@ -114,6 +148,10 @@ tk.Checkbutton(frame_opts, text="Baixar vídeo completo (.mp4)", variable=var_vi
 
 # Botão de download
 tk.Button(root, text="📥 Iniciar Download", command=iniciar_download, bg="green", fg="white").pack(pady=10)
+
+# Barra de progresso
+progress_bar = ttk.Progressbar(root, length=500, mode='determinate')
+progress_bar.pack(pady=5)
 
 # Área de log
 tk.Label(root, text="Log de status:").pack(anchor="w", padx=10)
