@@ -79,8 +79,8 @@ def batch_convert(directory, output_directory, file_types=("*.mp4", "*.m4a", "*.
 
 # Exemplo de uso
 if __name__ == "__main__":
-    input_directory = "/home/kingnike/Músicas/6"
-    output_directory = "/home/kingnike/Músicas/mp3"
+    input_directory = r"C:\Users\kaio0\Music\musicas_antes_converte"
+    output_directory = r"C:\Users\kaio0\Music\TA"
     
     if os.path.isdir(input_directory):
         batch_convert(input_directory, output_directory)
